@@ -1,11 +1,11 @@
 % if(exist('./Logistic Regression/','dir') ~= 1)
 %     addpath(genpath('./Logistic Regression/'));
 % end
-PLOT_TIMESERIES = 0;
+PLOT_TIMESERIES = 1;
 PLOT_TEST = 0; 
 PLOT_MONTHS = 0;
 CHECK_CONVERGENCE = 0;
-LOAD_THETAS = 0
+LOAD_THETAS = 1
 
 if(exist('./Linear Regression/','dir') ~= 1)
     addpath(genpath('./Linear Regression/'));
@@ -107,7 +107,7 @@ summer = (ds.season == 2);
 fall = (ds.season == 3);
 winter = (ds.season == 4);
 
-weather_clear = (ds.weather == 1);
+clear = (ds.weather == 1);
 mist = (ds.weather == 2);
 light_snow = (ds.weather == 3);
 heavy_rain = (ds.weather == 4);
@@ -116,7 +116,7 @@ m = length(ds);
 hours = [0:23];
 months = [1:12];
 
-X = [ds.holiday, ds.workingday, ds.temp, ds.atemp, ds.humidity, ds.windspeed, spring, summer, fall, winter, weather_clear, mist, light_snow, heavy_rain];
+X = [ds.holiday, ds.workingday, ds.temp, ds.atemp, ds.humidity, ds.windspeed, spring, summer, fall, winter, clear, mist, light_snow, heavy_rain];
 
 %add months and hours boolean columns
 monthsAndHours = [];
@@ -167,11 +167,8 @@ for i = 1 : length(alpha)
 
         % run gradient descent
         [thetaCasual, JCasualHistory] = gradientDescent(XTrain, yTrainCasual, thetaCasual, alpha(i), iterations);
-        if CHECK_CONVERGENCE == 1 && (exist('JCasualHistory','var') == 1)
+        if CHECK_CONVERGENCE == 1
             plot(1:length(JCasualHistory), JCasualHistory);
-            xlabel('# of iterations')
-            ylabel('Prediction Error')
-            title('Gradient Descent Convergence Check')
         end
     end
 
