@@ -1,11 +1,11 @@
-% if(exist('./Logistic Regression/','dir') ~= 1)
-%     addpath(genpath('./Logistic Regression/'));
-% end
+clear all;
 PLOT_TIMESERIES = 0;
 PLOT_TEST = 0; 
 PLOT_MONTHS = 0;
-CHECK_CONVERGENCE = 0;
-LOAD_THETAS = 0
+CHECK_CONVERGENCE = 1;
+LOAD_THETAS = 0;
+WRITE_RESULTS = 1;
+PLOT_RESULTS = 0;
 
 if(exist('./Linear Regression/','dir') ~= 1)
     addpath(genpath('./Linear Regression/'));
@@ -16,16 +16,9 @@ end
 
 fid = fopen('./data/train.csv', 'rt');
 ds = dataset('File','./data/train.csv','Delimiter',',');
-dateStrings = ds.datetime;
-formatIn = 'yyyy-mm-dd HH:MM:ss';
+ds = modifyDataset(ds);
 
-dateNumbers = datenum(dateStrings, formatIn);
-ds.dateNumbers = dateNumbers;
-ds.dateVectors = datevec(dateStrings,formatIn);
 ds = sortrows(ds, 'dateNumbers');
-%ds.consecutiveDay = abs(ds.dateNumbers(1) - ds.dateNumbers);
-ds.consecutiveDay = floor(daysdif(char(ds.datetime(1)), char(ds.datetime)));
-ds.consecutiveHour = round(daysdif(char(ds.datetime(1)), char(ds.datetime)) * 24);
 if PLOT_TIMESERIES == 1
     ts1 = timeseries(ds.registered, ds.consecutiveHour);
     ts1.TimeInfo.Units = 'hours';
@@ -86,61 +79,13 @@ if PLOT_MONTHS == 1
 end
 
 
-%% select features
-% datetime - hourly date + timestamp  
-% season -  1 = spring, 2 = summer, 3 = fall, 4 = winter 
-% holiday - whether the day is considered a holiday
-% workingday - whether the day is neither a weekend nor holiday
-% weather - 1: Clear, Few clouds, Partly cloudy, Partly cloudy 
-% 2: Mist + Cloudy, Mist + Broken clouds, Mist + Few clouds, Mist 
-% 3: Light Snow, Light Rain + Thunderstorm + Scattered clouds, Light Rain + Scattered clouds 
-% 4: Heavy Rain + Ice Pallets + Thunderstorm + Mist, Snow + Fog 
-% temp - temperature in Celsius
-% atemp - "feels like" temperature in Celsius
-% humidity - relative humidity
-% windspeed - wind speed
-% casual - number of non-registered user rentals initiated
-% registered - number of registered user rentals initiated
-% count - number of total rentals
-spring = (ds.season == 1);
-summer = (ds.season == 2);
-fall = (ds.season == 3);
-winter = (ds.season == 4);
-
-weather_clear = (ds.weather == 1);
-mist = (ds.weather == 2);
-light_snow = (ds.weather == 3);
-heavy_rain = (ds.weather == 4);
-
-m = length(ds);
-hours = [0:23];
-months = [1:12];
-
-X = [ds.holiday, ds.workingday, ds.temp, ds.atemp, ds.humidity, ds.windspeed, spring, summer, fall, winter, weather_clear, mist, light_snow, heavy_rain];
-
-%add months and hours boolean columns
-monthsAndHours = [];
-for i = 1 : size(X,1)
-    month = ds.dateVectors(i,2);
-    months = zeros(1,12);
-    months(1, month) = 1;
-    
-    hour = ds.dateVectors(i,4);
-    hours = zeros(1,24);
-    hours(1, hour+1) = 1;
-    monthsAndHours = [monthsAndHours; months hours];
-end
-
-X = [X monthsAndHours];
-%normalize features
-[X, mu, sigma] = featureNormalize(X);
-
-%add bias column
-X = [ones(m,1), X];
+%% create matrix with feature rows
+X = getFeatures(ds);
+m = size(X,1);
 
 %split the data into training and test samples
 indices = randperm(m);
-indicesTrain = indices(1:floor(0.6*m));
+indicesTrain = indices(1:floor(0.7*m));
 indicesTest =indices(~ismember(indices,indicesTrain));
 XTrain = X(indicesTrain,:);
 XTest = X(indicesTest,:);
@@ -148,7 +93,7 @@ XTest = X(indicesTest,:);
 consecutiveHoursTest = ds.consecutiveHour(indicesTest);
 
 % Some gradient descent settings
-iterations = 5000;
+iterations = 80000;
 %alpha = [0.01, 0.001, 0.0005, 0.0001, 0.00005, 0.000001];
 alpha = [0.001];
 cost = [];
@@ -182,10 +127,12 @@ for i = 1 : length(alpha)
     predictionsCasual = XTest * thetaCasual;
     
     %plot actual and predicted values
-    figure
-    scatter(consecutiveHoursTest, predictionsCasual, 'bx');
-    hold on;
-    scatter(consecutiveHoursTest, yTestCasual, 'bo');
+    if PLOT_RESULTS == 1
+        figure
+        scatter(consecutiveHoursTest, predictionsCasual, 'bx');
+        hold on;
+        scatter(consecutiveHoursTest, yTestCasual, 'bo');
+    end
 
 
     %% Create Linear Regression Model for regular bikes
@@ -210,9 +157,33 @@ for i = 1 : length(alpha)
     actualRegistered = yTestRegistered;
     
     %plot actual and predicted values
-    figure
-    scatter(consecutiveHoursTest, predictionsRegistered, 'rx');
-    hold on;
-    scatter(consecutiveHoursTest, actualRegistered, 'ro');
+    if PLOT_RESULTS == 1
+        figure
+        scatter(consecutiveHoursTest, predictionsRegistered, 'rx');
+        hold on;
+        scatter(consecutiveHoursTest, actualRegistered, 'ro');
+    end
     
+    save('thetas.mat', 'thetaCasual', 'thetaRegistered');
+    
+end
+
+if WRITE_RESULTS == 1
+    dsResults = dataset('File','./data/test.csv','Delimiter',',');
+    dsResults = modifyDataset(dsResults);
+
+    XResults = getFeatures(dsResults);
+    
+    m = length(dsResults);
+    
+    predictionsCasual = XResults * thetaCasual;
+    predictionsRegistered = XResults * thetaRegistered;
+    predictionsTotal = round(predictionsCasual+predictionsRegistered);
+    predictionsTotal(predictionsTotal<0)=0;
+    fileID = fopen('results.csv','w');
+    fprintf(fileID,'datetime,count\n');
+    for i = 1 : length(predictionsTotal)
+        fprintf(fileID,'%s,%d\n',char(dsResults.datetime(i)), predictionsTotal(i));
+    end
+    fclose(fileID);
 end
