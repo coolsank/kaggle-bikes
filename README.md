@@ -25,3 +25,9 @@ To select the vector of optimal weights theta, gradient descent has to run itera
 
 The image below shows the convergence check for 5000 iterations for value alpha = 0.001.
 ![Convergence check](https://raw.githubusercontent.com/nikogamulin/kaggle-bikes/master/images/Gradient%20Descent%20Convergence%20Check.png)
+
+**Current Results**
+![Casual Bike Rentals](https://raw.githubusercontent.com/nikogamulin/kaggle-bikes/master/images/Casual%20Bike%20Rentals%20Predictions.png)
+
+![Registered Bike Rentals](https://raw.githubusercontent.com/nikogamulin/kaggle-bikes/master/images/Registered%20Bike%20Rentals%20Predictions.png)
+
