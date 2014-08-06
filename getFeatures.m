@@ -28,6 +28,22 @@ weather_clear = (ds.weather == 1);
 mist = (ds.weather == 2);
 light_snow = (ds.weather == 3);
 heavy_rain = (ds.weather == 4);
+afternoon = ismember(ds.dateVectors(:,4), [12,13,14,15,16,17,18]);
+morning = ismember(ds.dateVectors(:,4), [7,8,9,10,11]);
+evening = ismember(ds.dateVectors(:,4), [19,20,21,22,23]);
+night = ismember(ds.dateVectors(:,4), [0,1,2,3,4,5,6]);
+clearAfternoon = afternoon & weather_clear;
+clearMorning = morning & weather_clear;
+%clearAfternoonTemperature = clearAfternoon .* ds.temp;
+clearMorningHoliday = clearMorning & ds.holiday;
+clearAfternoonHoliday = clearAfternoon & ds.holiday;
+clearMorningWorkingDay = clearMorning & ds.workingday;
+clearAfternoonWorkingDay = clearAfternoon & ds.workingday;
+clearEightOClock = (ds.dateVectors(:,4) == 8) & weather_clear;
+mistEightOClock = (ds.dateVectors(:,4) == 8) & mist;
+clearSeventeenOClock = (ds.dateVectors(:,4) == 17) & weather_clear;
+clearEighteenOClock = (ds.dateVectors(:,4) == 18) & weather_clear;
+workCommutes = ismember(ds.dateVectors(:,4), [8,17,18]);
 
 m = length(ds);
 hours = [0:23];
@@ -37,7 +53,7 @@ months = [1:12];
 X = [ds.temp, ds.atemp, ds.humidity, ds.windspeed];
 %normalize numeric features
 [X, mu, sigma] = featureNormalize(X);
-X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter, weather_clear, mist, light_snow, heavy_rain];
+X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter, weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening, night, clearMorningHoliday, clearAfternoonHoliday, clearMorningWorkingDay, clearAfternoonWorkingDay, clearEightOClock, mistEightOClock, clearSeventeenOClock, clearEighteenOClock, workCommutes];
 %add months and hours boolean columns
 monthsAndHours = [];
 for i = 1 : size(X,1)
@@ -48,7 +64,7 @@ for i = 1 : size(X,1)
     hour = ds.dateVectors(i,4);
     hours = zeros(1,24);
     hours(1, hour+1) = 1;
-    monthsAndHours = [monthsAndHours; months hours];
+    monthsAndHours = [monthsAndHours; months, hours];
 end
 
 X = [X monthsAndHours];

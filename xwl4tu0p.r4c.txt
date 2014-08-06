@@ -1,0 +1,49 @@
+﻿
+# Please enter the commit message for your changes. Lines starting
+# with '#' will be ignored, and an empty message aborts the commit.
+# On branch master
+# Changes to be committed:
+#   (use "git reset HEAD <file>..." to unstage)
+#
+#	deleted:    .gitattributes
+#	deleted:    Linear Regression/computeCost.m
+#	deleted:    Linear Regression/computeCostMulti.m
+#	deleted:    Linear Regression/featureNormalize.m
+#	deleted:    Linear Regression/gradientDescent.m
+#	deleted:    Linear Regression/gradientDescentMulti.m
+#	deleted:    Linear Regression/normalEqn.m
+#	deleted:    README.md
+#	deleted:    data/sampleSubmission.csv
+#	deleted:    data/test.csv
+#	deleted:    data/train.csv
+#	deleted:    getFeatures.m
+#	deleted:    getHourlyUsageForDays.m
+#	deleted:    getHourlyUsageForMonths.m
+#	deleted:    images/Average Hourly Rentals for January.png
+#	deleted:    images/Casual Bike Rentals Predictions.png
+#	deleted:    images/Daily Bike Rentals.png
+#	deleted:    images/Gradient Descent Convergence Check.png
+#	deleted:    images/Registered Bike Rentals Predictions.png
+#	deleted:    modifyDataset.m
+#	deleted:    procedure.m
+#	deleted:    thetas.mat
+#
+# Untracked files:
+#   (use "git add <file>..." to include in what will be committed)
+#
+#	.gitattributes
+#	Linear Regression/
+#	README.md
+#	data/
+#	getFeatures.m
+#	getHourlyUsageForDays.m
+#	getHourlyUsageForMonths.m
+#	images/
+#	modifyDataset.m
+#	msle.m
+#	procedure.m
+#	results_regression.csv
+#	results_regression_tree.csv
+#	rmsle.m
+#	sle.m
+

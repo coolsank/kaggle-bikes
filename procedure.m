@@ -4,12 +4,19 @@ PLOT_TEST = 0;
 PLOT_MONTHS = 0;
 CHECK_CONVERGENCE = 1;
 LOAD_THETAS = 0;
-WRITE_RESULTS = 1;
+PERFORM_LINEAR_REGRESSION = 0;
+PERFORM_REGRESSION_TREE = 1;
+SAVE_RESULTS = 1;
 PLOT_RESULTS = 0;
 
 if(exist('./Linear Regression/','dir') ~= 1)
     addpath(genpath('./Linear Regression/'));
 end
+
+if(exist('./stackedae_exercise/','dir') ~= 1)
+    addpath(genpath('./stackedae_exercise/'));
+end
+
 if LOAD_THETAS == 1 
     load('thetas.mat');
 end
@@ -83,6 +90,8 @@ end
 X = getFeatures(ds);
 m = size(X,1);
 
+featuresCount = size(X,2);
+
 %split the data into training and test samples
 indices = randperm(m);
 indicesTrain = indices(1:floor(0.7*m));
@@ -92,27 +101,95 @@ XTest = X(indicesTest,:);
 
 consecutiveHoursTest = ds.consecutiveHour(indicesTest);
 
-% Some gradient descent settings
-iterations = 80000;
-%alpha = [0.01, 0.001, 0.0005, 0.0001, 0.00005, 0.000001];
-alpha = [0.001];
-cost = [];
-for i = 1 : length(alpha)
+yCasual = ds.casual;
+yTrainCasual = yCasual(indicesTrain,:);
+yTestCasual = yCasual(indicesTest,:);
 
+yRegistered = ds.registered;
+yTrainRegistered = yRegistered(indicesTrain,:);
+yTestRegistered = yRegistered(indicesTest,:);
+
+% Some gradient descent settings
+iterations = 6000;
+%alpha = [0.01, 0.001, 0.0005, 0.0001, 0.00005, 0.000001];
+alpha = 0.005;
+cost = [];
+
+if PERFORM_REGRESSION_TREE == 1
+    %% Create regression tree model using matlab built-in functions
+    
+    treeModelCasual = classregtree(XTrain,yTrainCasual);
+    predictionsCasual = eval(treeModelCasual, XTest);
+    scoreCasual = rmsle(yTestCasual, predictionsCasual);
+    
+    treeModelRegistered = classregtree(XTrain, yTrainRegistered);
+    predictionsRegistered = eval(treeModelRegistered, XTest);
+    scoreRegistered = rmsle(yTestRegistered, predictionsRegistered);
+    
+    scoreTotal = rmsle(yTestCasual+yTestRegistered, predictionsCasual+predictionsRegistered);
+    
+    if PLOT_RESULTS == 1
+        figure
+        scatter(consecutiveHoursTest, predictionsCasual, 'rx');
+        hold on;
+        scatter(consecutiveHoursTest, yTestCasual, 'bx');
+        xlabel('Day')
+        ylabel('# of rented bikes');
+        legend('predicted', 'actual')
+        title('Predictions of casual bike rentals')
+        
+        figure
+        scatter(consecutiveHoursTest, predictionsRegistered, 'rx');
+        hold on;
+        scatter(consecutiveHoursTest, yTestRegistered, 'bx');
+        xlabel('Day')
+        ylabel('# of rented bikes');
+        legend('predicted', 'actual')
+        title('Predictions of registered bike rentals')
+    end
+    
+    if SAVE_RESULTS == 1
+        dsResults = dataset('File','./data/test.csv','Delimiter',',');
+        dsResults = modifyDataset(dsResults);
+
+        XResults = getFeatures(dsResults);
+
+        m = length(dsResults);
+
+        predictionsCasual = eval(treeModelCasual, XResults);
+        predictionsCasual(predictionsCasual<0)=0;
+        predictionsRegistered = eval(treeModelRegistered, XResults);
+        predictionsRegistered(predictionsRegistered<0)=0;
+        predictionsTotal = round(predictionsCasual+predictionsRegistered);
+        fileID = fopen('results_regression_tree.csv','w');
+        fprintf(fileID,'datetime,count\n');
+        for i = 1 : length(predictionsTotal)
+            fprintf(fileID,'%s,%d\n',char(dsResults.datetime(i)), predictionsTotal(i));
+        end
+        fclose(fileID);
+    end
+    
+end
+    
+    
+    
+    
+    
+
+if PERFORM_LINEAR_REGRESSION == 1
     %% Create Linear Regression Model for casual bikes
 
-    yCasual = ds.casual;
-    yTrainCasual = yCasual(indicesTrain,:);
-    yTestCasual = yCasual(indicesTest,:);
+    
 
     if(exist('thetaCasual','var') ~= 1)
-        thetaCasual = zeros(51, 1); % initialize fitting parameters
+        thetaCasual = zeros(featuresCount, 1); % initialize fitting parameters
         % compute and display initial cost
         computeCost(XTrain, yTrainCasual, thetaCasual);
 
         % run gradient descent
-        [thetaCasual, JCasualHistory] = gradientDescent(XTrain, yTrainCasual, thetaCasual, alpha(i), iterations);
+        [thetaCasual, JCasualHistory] = gradientDescent(XTrain, yTrainCasual, thetaCasual, alpha, iterations);
         if CHECK_CONVERGENCE == 1 && (exist('JCasualHistory','var') == 1)
+            figure
             plot(1:length(JCasualHistory), JCasualHistory);
             xlabel('# of iterations')
             ylabel('Prediction Error')
@@ -125,28 +202,36 @@ for i = 1 : length(alpha)
     JTestCasual = computeCost(XTest, yTestCasual, thetaCasual);
 
     predictionsCasual = XTest * thetaCasual;
+    predictionsCasual(predictionsCasual<0) = 0;
+    
+    scoreCasual = rmsle(yTestCasual, predictionsCasual);
+    sprintf('Score for predicting casual bike rental: %0.6f\n', scoreCasual); 
     
     %plot actual and predicted values
     if PLOT_RESULTS == 1
         figure
-        scatter(consecutiveHoursTest, predictionsCasual, 'bx');
+        scatter(consecutiveHoursTest, predictionsCasual, 'rx');
         hold on;
-        scatter(consecutiveHoursTest, yTestCasual, 'bo');
+        scatter(consecutiveHoursTest, yTestCasual, 'bx');
     end
 
 
     %% Create Linear Regression Model for regular bikes
-    yRegistered = ds.registered;
-    yTrainRegistered = yRegistered(indicesTrain,:);
-    yTestRegistered = yRegistered(indicesTest,:);
 
     if(exist('thetaRegistered','var') ~= 1)
-        thetaRegistered = zeros(51, 1); % initialize fitting parameters
+        thetaRegistered = zeros(featuresCount, 1); % initialize fitting parameters
         % compute and display initial cost
         computeCost(XTrain, yTrainRegistered, thetaRegistered);
 
         % run gradient descent
-        thetaRegistered = gradientDescent(XTrain, yTrainRegistered, thetaRegistered, alpha(i), iterations);
+        [thetaRegistered, JRegisteredHistory] = gradientDescent(XTrain, yTrainRegistered, thetaRegistered, alpha, iterations);
+        if CHECK_CONVERGENCE == 1 && (exist('JRegisteredHistory','var') == 1)
+            figure
+            plot(1:length(JRegisteredHistory), JRegisteredHistory);
+            xlabel('# of iterations')
+            ylabel('Prediction Error')
+            title('Gradient Descent Convergence Check')
+        end
     end
 
     %check errors
@@ -154,36 +239,45 @@ for i = 1 : length(alpha)
     JTestRegistered = computeCost(XTest, yTestRegistered, thetaRegistered);
 
     predictionsRegistered = XTest * thetaRegistered;
-    actualRegistered = yTestRegistered;
+    predictionsRegistered(predictionsRegistered<0)=0;
     
     %plot actual and predicted values
     if PLOT_RESULTS == 1
         figure
         scatter(consecutiveHoursTest, predictionsRegistered, 'rx');
         hold on;
-        scatter(consecutiveHoursTest, actualRegistered, 'ro');
+        scatter(consecutiveHoursTest, yTestRegistered, 'bx');
     end
+    
+    scoreRegistered = rmsle(yTestRegistered, predictionsRegistered);
+    sprintf('Score for predicting registered bike rental: %0.6f\n', scoreRegistered); 
     
     save('thetas.mat', 'thetaCasual', 'thetaRegistered');
     
-end
+    %check score
+    predictedTotal = predictionsCasual + predictionsRegistered;
+    actualTotal = yTestCasual + yTestRegistered;
+    scoreTotal = rmsle(actualTotal, predictedTotal);
+    sprintf('Score for predicting total bike rental: %0.6f\n', scoreTotal); 
 
-if WRITE_RESULTS == 1
-    dsResults = dataset('File','./data/test.csv','Delimiter',',');
-    dsResults = modifyDataset(dsResults);
+    if SAVE_RESULTS == 1
+        dsResults = dataset('File','./data/test.csv','Delimiter',',');
+        dsResults = modifyDataset(dsResults);
 
-    XResults = getFeatures(dsResults);
-    
-    m = length(dsResults);
-    
-    predictionsCasual = XResults * thetaCasual;
-    predictionsRegistered = XResults * thetaRegistered;
-    predictionsTotal = round(predictionsCasual+predictionsRegistered);
-    predictionsTotal(predictionsTotal<0)=0;
-    fileID = fopen('results.csv','w');
-    fprintf(fileID,'datetime,count\n');
-    for i = 1 : length(predictionsTotal)
-        fprintf(fileID,'%s,%d\n',char(dsResults.datetime(i)), predictionsTotal(i));
+        XResults = getFeatures(dsResults);
+
+        m = length(dsResults);
+
+        predictionsCasual = XResults * thetaCasual;
+        predictionsCasual(predictionsCasual<0)=0;
+        predictionsRegistered = XResults * thetaRegistered;
+        predictionsRegistered(predictionsRegistered<0)=0;
+        predictionsTotal = round(predictionsCasual+predictionsRegistered);
+        fileID = fopen('results_regression.csv','w');
+        fprintf(fileID,'datetime,count\n');
+        for i = 1 : length(predictionsTotal)
+            fprintf(fileID,'%s,%d\n',char(dsResults.datetime(i)), predictionsTotal(i));
+        end
+        fclose(fileID);
     end
-    fclose(fileID);
 end
