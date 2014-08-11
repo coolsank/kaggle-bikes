@@ -34,26 +34,62 @@ evening = ismember(ds.dateVectors(:,4), [19,20,21,22,23]);
 night = ismember(ds.dateVectors(:,4), [0,1,2,3,4,5,6]);
 clearAfternoon = afternoon & weather_clear;
 clearMorning = morning & weather_clear;
+mistMorning = morning & mist;
+mistAfternoon = afternoon & mist;
 %clearAfternoonTemperature = clearAfternoon .* ds.temp;
 clearMorningHoliday = clearMorning & ds.holiday;
+mistMorningHoliday = mistMorning & ds.holiday;
+lightSnowMorningHoliday = light_snow & ds.holiday;
 clearAfternoonHoliday = clearAfternoon & ds.holiday;
 clearMorningWorkingDay = clearMorning & ds.workingday;
 clearAfternoonWorkingDay = clearAfternoon & ds.workingday;
 clearEightOClock = (ds.dateVectors(:,4) == 8) & weather_clear;
 mistEightOClock = (ds.dateVectors(:,4) == 8) & mist;
+lightSnowEightOClock = (ds.dateVectors(:,4) == 8) & light_snow;
+heavyRainEightOClock = (ds.dateVectors(:,4) == 8) & heavy_rain;
 clearSeventeenOClock = (ds.dateVectors(:,4) == 17) & weather_clear;
 clearEighteenOClock = (ds.dateVectors(:,4) == 18) & weather_clear;
+lightSnowSeventeenOClock = (ds.dateVectors(:,4) == 17) & light_snow;
+heavyRainSeventeenOClock = (ds.dateVectors(:,4) == 17) & heavy_rain;
+mistEighteenOClock = (ds.dateVectors(:,4) == 18) & mist;
+mistSeventeenOClock = (ds.dateVectors(:,4) == 17) & mist;
+lightSnowEighteenOClock = (ds.dateVectors(:,4) == 18) & light_snow;
+heavyRainEighteenOClock = (ds.dateVectors(:,4) == 18) & heavy_rain;
 workCommutes = ismember(ds.dateVectors(:,4), [8,17,18]);
+
+year_2011 =(ds.dateVectors(:,1) == 2011);
+year_2012 = (ds.dateVectors(:,1) == 2012);
 
 m = length(ds);
 hours = [0:23];
 months = [1:12];
-
 %X = [ds.holiday, ds.workingday, ds.temp, ds.atemp, ds.humidity, ds.windspeed, spring, summer, fall, winter, weather_clear, mist, light_snow, heavy_rain];
 X = [ds.temp, ds.atemp, ds.humidity, ds.windspeed];
 %normalize numeric features
 [X, mu, sigma] = featureNormalize(X);
-X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter, weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening, night, clearMorningHoliday, clearAfternoonHoliday, clearMorningWorkingDay, clearAfternoonWorkingDay, clearEightOClock, mistEightOClock, clearSeventeenOClock, clearEighteenOClock, workCommutes];
+
+%Score: 0.365255
+%X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter,weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening,night, clearMorningHoliday, clearAfternoonHoliday, clearMorningWorkingDay,clearAfternoonWorkingDay, clearEightOClock, mistEightOClock,clearSeventeenOClock, clearEighteenOClock, workCommutes, year_2011,year_2012];
+
+%Score: 0.363344
+%X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter,weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening,night, mistEightOClock,clearSeventeenOClock, clearEighteenOClock, workCommutes, year_2011,year_2012];
+
+%Score: 0.352008
+X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter,weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening,night, mistEightOClock,clearSeventeenOClock, clearEighteenOClock, year_2011,year_2012];
+
+%Score: 0.549759
+%X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter,weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening,night,clearEightOClock, mistEightOClock,clearSeventeenOClock, clearEighteenOClock, year_2011,year_2012];
+
+%Score: 0.543744
+%X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter,weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening,night,clearEightOClock, mistEightOClock, clearEighteenOClock, year_2011,year_2012];
+
+%Score: 0.359976
+%X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter,weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening,night, clearEightOClock, mistEightOClock, clearEighteenOClock, mistEighteenOClock, year_2011,year_2012];
+
+%X = [ds.holiday, ds.workingday, X, spring, summer, fall, winter,weather_clear, mist, light_snow, heavy_rain, afternoon, morning, evening,night, clearMorningHoliday, clearAfternoonHoliday, clearMorningWorkingDay,clearAfternoonWorkingDay, clearEightOClock, mistEightOClock,clearSeventeenOClock, mistSeventeenOClock, clearEighteenOClock, mistEighteenOClock, workCommutes, mistMorningHoliday, lightSnowMorningHoliday, lightSnowEightOClock, heavyRainEightOClock, lightSnowSeventeenOClock, heavyRainSeventeenOClock, lightSnowEighteenOClock, heavyRainEighteenOClock, year_2011,year_2012];
+
+
+
 %add months and hours boolean columns
 monthsAndHours = [];
 for i = 1 : size(X,1)
@@ -67,7 +103,15 @@ for i = 1 : size(X,1)
     monthsAndHours = [monthsAndHours; months, hours];
 end
 
-X = [X monthsAndHours];
+weekdays = [];
+for i = 1 : size(X,1)
+    [dayNumber, dayName] = weekday(ds.datetime(i));
+    w = zeros(1,7);
+    w(1,dayNumber) = 1;
+    weekdays = [weekdays; w];
+end
+
+X = [X monthsAndHours weekdays];
 
 %add bias column
 X = [ones(m,1), X];

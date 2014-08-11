@@ -5,7 +5,8 @@ PLOT_MONTHS = 0;
 CHECK_CONVERGENCE = 1;
 LOAD_THETAS = 0;
 PERFORM_LINEAR_REGRESSION = 0;
-PERFORM_REGRESSION_TREE = 1;
+PERFORM_REGRESSION_TREE = 0;
+PERFORM_RANDOM_FOREST = 1;
 SAVE_RESULTS = 1;
 PLOT_RESULTS = 0;
 
@@ -15,6 +16,10 @@ end
 
 if(exist('./stackedae_exercise/','dir') ~= 1)
     addpath(genpath('./stackedae_exercise/'));
+end
+
+if(exist('./randomforest-matlab/RF_Reg_C/') ~= 1)
+    addpath(genpath('./randomforest-matlab/RF_Reg_C/'));
 end
 
 if LOAD_THETAS == 1 
@@ -87,46 +92,36 @@ end
 
 
 %% create matrix with feature rows
+%TODO: Test different combinations of features
 X = getFeatures(ds);
 m = size(X,1);
-
 featuresCount = size(X,2);
 
-%split the data into training and test samples
-indices = randperm(m);
-indicesTrain = indices(1:floor(0.7*m));
-indicesTest =indices(~ismember(indices,indicesTrain));
-XTrain = X(indicesTrain,:);
-XTest = X(indicesTest,:);
-
-consecutiveHoursTest = ds.consecutiveHour(indicesTest);
-
 yCasual = ds.casual;
-yTrainCasual = yCasual(indicesTrain,:);
-yTestCasual = yCasual(indicesTest,:);
-
 yRegistered = ds.registered;
-yTrainRegistered = yRegistered(indicesTrain,:);
-yTestRegistered = yRegistered(indicesTest,:);
-
-% Some gradient descent settings
-iterations = 6000;
-%alpha = [0.01, 0.001, 0.0005, 0.0001, 0.00005, 0.000001];
-alpha = 0.005;
-cost = [];
 
 if PERFORM_REGRESSION_TREE == 1
     %% Create regression tree model using matlab built-in functions
     
-    treeModelCasual = classregtree(XTrain,yTrainCasual);
-    predictionsCasual = eval(treeModelCasual, XTest);
-    scoreCasual = rmsle(yTestCasual, predictionsCasual);
+    %[treeModelRegistered, treeModelCasual, score] = getCVRegressionTree(X,yCasual, yRegistered); %improves the result over simple splitting data into training and test set
+    load('bagTree.mat');%score: 0.354949
+    %[treeModelRegistered, treeModelCasual, score] =
+    %getCVBoostTree(X,yCasual, yRegistered); %improves the result over
+    %simple splitting data into training and test set %Best performance so
+    %far
     
-    treeModelRegistered = classregtree(XTrain, yTrainRegistered);
-    predictionsRegistered = eval(treeModelRegistered, XTest);
-    scoreRegistered = rmsle(yTestRegistered, predictionsRegistered);
+    msg = sprintf('Score: %0.6f', score);
+    disp(msg);
     
-    scoreTotal = rmsle(yTestCasual+yTestRegistered, predictionsCasual+predictionsRegistered);
+    prompt = '\nDo you want to save the results? Y/N [Y]: ';
+    str = input(prompt,'s');
+    if isempty(str)
+        str = 'Y';
+    end
+    
+    if str == 'N'
+        SAVE_RESULTS = 0;
+    end
     
     if PLOT_RESULTS == 1
         figure
@@ -155,13 +150,54 @@ if PERFORM_REGRESSION_TREE == 1
         XResults = getFeatures(dsResults);
 
         m = length(dsResults);
-
-        predictionsCasual = eval(treeModelCasual, XResults);
+        predictionsCasual = abs(treeModelRegistered.predict(XResults));
         predictionsCasual(predictionsCasual<0)=0;
-        predictionsRegistered = eval(treeModelRegistered, XResults);
+        predictionsRegistered = abs(treeModelCasual.predict(XResults));
         predictionsRegistered(predictionsRegistered<0)=0;
         predictionsTotal = round(predictionsCasual+predictionsRegistered);
-        fileID = fopen('results_regression_tree.csv','w');
+        fileID = fopen('results_bag_tree.csv','w');
+        fprintf(fileID,'datetime,count\n');
+        for i = 1 : length(predictionsTotal)
+            fprintf(fileID,'%s,%d\n',char(dsResults.datetime(i)), predictionsTotal(i));
+        end
+        fclose(fileID);
+    end
+    
+end
+
+if PERFORM_RANDOM_FOREST == 1
+    %load('randomForest.mat');
+    %[modelRegistered, modelCasual, score] = getCVRandomForest(X,yCasual,yRegistered, 500, 1); %Score: 0.324997 best so far
+    %save('randomForestAllFeatures.mat', 'modelRegistered', 'modelCasual', 'score');
+    %msg = sprintf('Score: %0.6f', score);
+    %disp(msg);
+    
+    [modelRegistered, modelCasual, score] = getCVRandomForest(X,yCasual,yRegistered, 500, 0); %Score: 0.324997 best so far
+    
+    
+    prompt = '\nDo you want to save the results? Y/N [Y]: ';
+    str = input(prompt,'s');
+    if isempty(str)
+        str = 'Y';
+    end
+    
+    if str == 'N'
+        SAVE_RESULTS = 0;
+    end
+    
+    if SAVE_RESULTS == 1
+        dsResults = dataset('File','./data/test.csv','Delimiter',',');
+        dsResults = modifyDataset(dsResults);
+
+        XResults = getFeatures(dsResults);
+
+        m = length(dsResults);
+        predictionsCasual = regRF_predict(XResults,modelCasual);
+        predictionsCasual(predictionsCasual<0)=0;
+        predictionsRegistered = regRF_predict(XResults,modelRegistered);
+        predictionsRegistered(predictionsRegistered<0)=0;
+        predictionsTotal = round(predictionsCasual+predictionsRegistered);
+        fileID = fopen('results_random_forest_more_features.csv','w');
         fprintf(fileID,'datetime,count\n');
         for i = 1 : length(predictionsTotal)
             fprintf(fileID,'%s,%d\n',char(dsResults.datetime(i)), predictionsTotal(i));
@@ -171,15 +207,31 @@ if PERFORM_REGRESSION_TREE == 1
     
 end
     
-    
-    
-    
-    
-
 if PERFORM_LINEAR_REGRESSION == 1
     %% Create Linear Regression Model for casual bikes
 
-    
+    %split the data into training and test samples
+    indices = randperm(m);
+    indicesTrain = indices(1:floor(0.7*m));
+    indicesTest =indices(~ismember(indices,indicesTrain));
+    XTrain = X(indicesTrain,:);
+    XTest = X(indicesTest,:);
+
+    consecutiveHoursTest = ds.consecutiveHour(indicesTest);
+
+    yCasual = ds.casual;
+    yTrainCasual = yCasual(indicesTrain,:);
+    yTestCasual = yCasual(indicesTest,:);
+
+    yRegistered = ds.registered;
+    yTrainRegistered = yRegistered(indicesTrain,:);
+    yTestRegistered = yRegistered(indicesTest,:);
+
+    % Some gradient descent settings
+    iterations = 6000;
+    %alpha = [0.01, 0.001, 0.0005, 0.0001, 0.00005, 0.000001];
+    alpha = 0.005;
+    cost = [];
 
     if(exist('thetaCasual','var') ~= 1)
         thetaCasual = zeros(featuresCount, 1); % initialize fitting parameters
